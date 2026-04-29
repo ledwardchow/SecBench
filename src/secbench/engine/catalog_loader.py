@@ -23,6 +23,14 @@ BENCHMARK_PACKAGES: list[tuple[str, str]] = [
     ("secbench.benchmarks.azure_storage_1_0_0", "catalog.yaml"),
     ("secbench.benchmarks.m365_foundations_6_0_1", "catalog.yaml"),
     ("secbench.benchmarks.macos_tahoe_1_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.rhel_10_1_0_1", "catalog.yaml"),
+    ("secbench.benchmarks.rhel_9_2_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.rhel_9_stig_1_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.rhel_8_4_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.rhel_8_stig_2_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.defender_av_1_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.windows_11_enterprise_5_0_1", "catalog.yaml"),
+    ("secbench.benchmarks.windows_11_standalone_5_0_0", "catalog.yaml"),
 ]
 
 

@@ -32,9 +32,17 @@ class BenchmarksPage(QWidget):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.addWidget(QLabel("<h2>Choose benchmarks</h2>"))
 
-        self.bench_box = QGroupBox("Benchmarks")
-        self.bench_layout = QVBoxLayout(self.bench_box)
-        layout.addWidget(self.bench_box)
+        # Two side-by-side group boxes: Cloud (Azure/M365) and
+        # Infrastructure (macOS/Linux). They are populated dynamically from
+        # the bench.target attribute when benchmarks are loaded.
+        groups_row = QHBoxLayout()
+        self.cloud_box = QGroupBox("Cloud (Azure / M365)")
+        self.cloud_layout = QVBoxLayout(self.cloud_box)
+        self.infra_box = QGroupBox("Infrastructure (macOS / Linux)")
+        self.infra_layout = QVBoxLayout(self.infra_box)
+        groups_row.addWidget(self.cloud_box, 1)
+        groups_row.addWidget(self.infra_box, 1)
+        layout.addLayout(groups_row)
 
         opts = QGroupBox("Options")
         opts_layout = QFormLayout(opts)
@@ -67,12 +75,13 @@ class BenchmarksPage(QWidget):
         layout.addStretch(1)
 
     def _populate(self, benchmarks) -> None:
-        # Clear and rebuild.
-        while self.bench_layout.count():
-            item = self.bench_layout.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
+        # Clear and rebuild both group boxes.
+        for layout in (self.cloud_layout, self.infra_layout):
+            while layout.count():
+                item = layout.takeAt(0)
+                w = item.widget()
+                if w is not None:
+                    w.deleteLater()
         self.checks: dict[str, QCheckBox] = {}
         sel = set(self.main.settings.selected_benchmarks)
         for bench in benchmarks:
@@ -86,9 +95,15 @@ class BenchmarksPage(QWidget):
                     "This benchmark is in development. Coverage and accuracy of automated\n"
                     "checks are still being validated. Treat results as advisory."
                 )
-            cb.setChecked(bench.id in sel if sel else True)
-            self.bench_layout.addWidget(cb)
+            cb.setChecked(bench.id in sel)
+            target = getattr(bench, "target", "azure")
+            if target in ("azure", "m365"):
+                self.cloud_layout.addWidget(cb)
+            else:  # macos, rhel, etc.
+                self.infra_layout.addWidget(cb)
             self.checks[bench.id] = cb
+        self.cloud_layout.addStretch(1)
+        self.infra_layout.addStretch(1)
 
     def selected_benchmark_ids(self) -> list[str]:
         return [bid for bid, cb in self.checks.items() if cb.isChecked()]

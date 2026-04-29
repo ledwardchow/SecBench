@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QRadioButton,
     QScrollArea,
     QSpinBox,
-    QStackedWidget,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -76,17 +76,23 @@ class ConnectPage(QWidget):
         self._subs_worker: _SubsWorker | None = None
 
     def _build_ui(self) -> None:
-        # Wrap everything in a scroll area so the page works on smaller windows
-        # now that we have multiple groups (Azure auth + subscriptions + macOS).
+        # Top-level layout hosts a QTabWidget with two tabs:
+        #   - Cloud (Azure / M365)
+        #   - Infrastructure (macOS / Linux)
         outermost = QVBoxLayout(self)
         outermost.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea(self)
-        scroll.setWidgetResizable(True)
-        outermost.addWidget(scroll)
-        host = QWidget()
-        scroll.setWidget(host)
-        outer = QVBoxLayout(host)
+
+        self.tabs = QTabWidget(self)
+        outermost.addWidget(self.tabs)
+
+        # ---- Cloud tab (Azure / M365) -----------------------------------
+        cloud_scroll = QScrollArea()
+        cloud_scroll.setWidgetResizable(True)
+        cloud_host = QWidget()
+        cloud_scroll.setWidget(cloud_host)
+        outer = QVBoxLayout(cloud_host)
         outer.setContentsMargins(24, 24, 24, 24)
+        self.tabs.addTab(cloud_scroll, "Cloud (Azure / M365)")
 
         title = QLabel("<h2>Connect to Azure / Microsoft 365</h2>")
         outer.addWidget(title)
@@ -174,21 +180,46 @@ class ConnectPage(QWidget):
         # Status messages.
         self.status_label = QLabel("")
         outer.addWidget(self.status_label)
+        outer.addStretch(1)
 
-        # ----------------------------------------------- macOS target group
-        outer.addWidget(QLabel("<h2>macOS Target (for the macOS Tahoe benchmark)</h2>"))
-        self.target_box = QGroupBox("Run macOS checks against")
+        # ---- Infrastructure tab (macOS / Linux / Windows) ---------------
+        infra_scroll = QScrollArea()
+        infra_scroll.setWidgetResizable(True)
+        infra_host = QWidget()
+        infra_scroll.setWidget(infra_host)
+        infra_outer = QVBoxLayout(infra_host)
+        infra_outer.setContentsMargins(24, 24, 24, 24)
+        self.tabs.addTab(infra_scroll, "Infrastructure (macOS / Linux / Windows)")
+
+        infra_outer.addWidget(QLabel(
+            "<h2>Local OS target (for macOS, RHEL and Windows benchmarks)</h2>"
+        ))
+        infra_outer.addWidget(QLabel(
+            "<p style='color:#555'>Configure the operating system target used by "
+            "the macOS Tahoe, Red Hat Enterprise Linux, and Microsoft Windows / "
+            "Defender benchmarks. Cloud benchmarks (Azure / M365) do not use "
+            "this target.</p>"
+        ))
+
+        self.target_box = QGroupBox("Run OS checks against")
         tgt_layout = QVBoxLayout(self.target_box)
 
         radios = QHBoxLayout()
-        is_mac = platform.system() == "Darwin"
-        self.r_local = QRadioButton("Local computer (this Mac)")
-        self.r_ssh = QRadioButton("Remote macOS host (SSH)")
-        if not is_mac:
+        sysname = platform.system()
+        is_local_supported = sysname in ("Darwin", "Linux", "Windows")
+        self.r_local = QRadioButton(f"Local computer (this {sysname or 'host'})")
+        self.r_ssh = QRadioButton("Remote macOS / Linux / Windows host (SSH)")
+        if not is_local_supported:
             self.r_local.setEnabled(False)
-            self.r_local.setToolTip("Local mode is available only when this app runs on macOS.")
-        # Apply persisted choice
-        if self.main.settings.macos_target_kind == "ssh" or not is_mac:
+            self.r_local.setToolTip(
+                "Local mode is available only when this app runs on macOS, "
+                "Linux, or Windows."
+            )
+        # Apply persisted choice. Use either the new os_target_kind setting or
+        # fall back to the legacy macos_target_kind.
+        kind = getattr(self.main.settings, "os_target_kind", None) \
+            or getattr(self.main.settings, "macos_target_kind", "local")
+        if kind == "ssh" or not is_local_supported:
             self.r_ssh.setChecked(True)
         else:
             self.r_local.setChecked(True)
@@ -238,7 +269,8 @@ class ConnectPage(QWidget):
         test_row.addWidget(self.target_status, 1)
         tgt_layout.addLayout(test_row)
 
-        outer.addWidget(self.target_box)
+        infra_outer.addWidget(self.target_box)
+        infra_outer.addStretch(1)
         self._on_target_toggled()
 
     def _set_all_checked(self, checked: bool) -> None:
@@ -378,13 +410,13 @@ class ConnectPage(QWidget):
         self.subs_list.addItem(item)
         self._update_subs_count()
 
-    # ------------------------------------------------------- macOS target
+    # ----------------------------------------------- OS target (macOS/Linux)
     def _on_target_toggled(self) -> None:
         self.ssh_form_box.setVisible(self.r_ssh.isChecked())
 
-    def macos_target(self):
+    def os_target(self):
         """Build a MachineTarget from current settings, or return None."""
-        from ...targets import LocalTarget, SshTarget, TargetError
+        from ...targets import LocalTarget, SshTarget
         if self.r_local.isChecked():
             return LocalTarget()
         host = self.ssh_host_edit.text().strip()
@@ -400,9 +432,16 @@ class ConnectPage(QWidget):
             sudo_password=self.ssh_sudo_password_edit.text() or None,
         )
 
+    # Backwards-compatible alias for older callers.
+    def macos_target(self):
+        return self.os_target()
+
     def persist_target_settings(self) -> None:
         s = self.main.settings
-        s.macos_target_kind = "ssh" if self.r_ssh.isChecked() else "local"
+        kind = "ssh" if self.r_ssh.isChecked() else "local"
+        s.macos_target_kind = kind
+        if hasattr(s, "os_target_kind"):
+            s.os_target_kind = kind
         s.macos_ssh_host = self.ssh_host_edit.text().strip()
         s.macos_ssh_port = self.ssh_port_spin.value()
         s.macos_ssh_user = self.ssh_user_edit.text().strip()
@@ -413,21 +452,46 @@ class ConnectPage(QWidget):
     def _on_test_target(self) -> None:
         self.target_status.setText("Testing...")
         try:
-            tgt = self.macos_target()
-            res = tgt.run(["uname", "-a"], timeout=10.0)
-            tgt.close()
+            tgt = self.os_target()
         except Exception as exc:
             self.target_status.setText(f"FAILED: {exc}")
             return
-        if res.rc == 0 and "Darwin" in res.stdout:
-            self.target_status.setText(f"OK: {res.stdout.strip()[:200]}")
+
+        # Try POSIX `uname` first; if that fails, try Windows `cmd /c ver`.
+        try:
+            res = tgt.run(["uname", "-a"], timeout=10.0)
+        except Exception:
+            res = None
+        if res is not None and res.rc == 0 and (
+            "Darwin" in res.stdout or "Linux" in res.stdout
+        ):
+            kind = "macOS" if "Darwin" in res.stdout else "Linux"
+            self.target_status.setText(f"OK ({kind}): {res.stdout.strip()[:200]}")
             self.persist_target_settings()
-        elif res.rc == 0:
+            tgt.close()
+            return
+
+        try:
+            wres = tgt.run(["cmd", "/c", "ver"], timeout=10.0)
+        except Exception as exc:
+            self.target_status.setText(f"FAILED: {exc}")
+            tgt.close()
+            return
+        finally:
+            pass
+
+        if wres.rc == 0 and "Windows" in wres.stdout:
+            self.target_status.setText(f"OK (Windows): {wres.stdout.strip()[:200]}")
+            self.persist_target_settings()
+        elif res is not None and res.rc == 0:
             self.target_status.setText(
-                f"Reachable but does not look like macOS: {res.stdout.strip()[:200]}")
+                f"Reachable but does not look like macOS / Linux / Windows: "
+                f"{res.stdout.strip()[:200]}")
         else:
+            err = (wres.stderr or wres.stdout or "").strip()[:200]
             self.target_status.setText(
-                f"Command failed (rc={res.rc}): {res.stderr.strip()[:200]}")
+                f"Command failed (rc={wres.rc}): {err}")
+        tgt.close()
 
     def selected_subscription_ids(self) -> list[str]:
         from PyQt6.QtCore import Qt

@@ -23,6 +23,14 @@ BENCHMARK_PACKAGE_NAMES = [
     "secbench.benchmarks.azure_storage_1_0_0",
     "secbench.benchmarks.m365_foundations_6_0_1",
     "secbench.benchmarks.macos_tahoe_1_0_0",
+    "secbench.benchmarks.rhel_10_1_0_1",
+    "secbench.benchmarks.rhel_9_2_0_0",
+    "secbench.benchmarks.rhel_9_stig_1_0_0",
+    "secbench.benchmarks.rhel_8_4_0_0",
+    "secbench.benchmarks.rhel_8_stig_2_0_0",
+    "secbench.benchmarks.defender_av_1_0_0",
+    "secbench.benchmarks.windows_11_enterprise_5_0_1",
+    "secbench.benchmarks.windows_11_standalone_5_0_0",
 ]
 
 

@@ -9,11 +9,14 @@ from typing import Optional
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMessageBox,
+    QPushButton,
     QStackedWidget,
     QStatusBar,
     QVBoxLayout,
@@ -22,6 +25,7 @@ from PyQt6.QtWidgets import (
 
 from ..auth import AuthManager
 from ..config import Settings
+from ..elevation import is_admin, is_windows, relaunch_as_admin
 from ..engine import load_all_benchmarks
 from ..engine.runner import RunResult
 from .pages.benchmarks_page import BenchmarksPage
@@ -64,7 +68,12 @@ class MainWindow(QMainWindow):
     # ----------------------------------------------------------------- layout
     def _build_ui(self) -> None:
         central = QWidget(self)
-        layout = QHBoxLayout(central)
+        outer = QVBoxLayout(central)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        body = QWidget()
+        layout = QHBoxLayout(body)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
@@ -92,6 +101,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.nav)
         layout.addWidget(self.stack, 1)
 
+        outer.addWidget(body, 1)
+        self._build_elevation_banner(outer)
+
         self.setCentralWidget(central)
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
 
@@ -104,6 +116,84 @@ class MainWindow(QMainWindow):
         # Wire cross-page signals.
         self.auth_changed.connect(self._on_auth_changed)
         self.run_finished.connect(self._on_run_finished)
+
+    # ----------------------------------------------------- elevation banner
+    def _build_elevation_banner(self, outer: QVBoxLayout) -> None:
+        """Show a yellow banner at the bottom on Windows when unelevated.
+
+        Windows benchmarks running against the local target need admin
+        rights for things like ``secedit /export``, ``auditpol``,
+        ``Get-MpPreference``, ``Get-BitLockerVolume``, and most
+        privileged registry keys. Without elevation those checks return
+        MANUAL or FAIL.
+        """
+        self.elevation_banner = QFrame()
+        self.elevation_banner.setObjectName("elevationBanner")
+        self.elevation_banner.setStyleSheet(
+            "QFrame#elevationBanner {"
+            " background-color: #fff4cc;"
+            " border-top: 1px solid #d4b800;"
+            "}"
+            "QFrame#elevationBanner QLabel { color: #5b4500; }"
+        )
+        bl = QHBoxLayout(self.elevation_banner)
+        bl.setContentsMargins(12, 8, 12, 8)
+        bl.setSpacing(12)
+        msg = QLabel(
+            "Running unelevated on Windows. Local Windows benchmark checks "
+            "that need administrator rights (secedit, auditpol, Defender, "
+            "BitLocker, privileged registry) will return MANUAL or FAIL "
+            "until the app is restarted with elevation."
+        )
+        msg.setWordWrap(True)
+        bl.addWidget(msg, 1)
+        self.elevate_btn = QPushButton("Restart as administrator")
+        self.elevate_btn.clicked.connect(self._on_restart_elevated)
+        bl.addWidget(self.elevate_btn, 0, Qt.AlignmentFlag.AlignRight)
+
+        outer.addWidget(self.elevation_banner)
+
+        # Only show the banner on Windows when we are NOT elevated.
+        if not (is_windows() and not is_admin()):
+            self.elevation_banner.hide()
+
+    def _on_restart_elevated(self) -> None:
+        reply = QMessageBox.question(
+            self,
+            "Restart as administrator",
+            "SecBench will close and re-launch with elevated privileges. "
+            "You will need to re-sign-in to Azure if you want to run cloud "
+            "benchmarks. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.settings.save()
+        except Exception:
+            log.exception("Failed to persist settings before relaunch")
+
+        if not relaunch_as_admin():
+            QMessageBox.warning(
+                self,
+                "Elevation declined",
+                "The elevation request was declined or failed. "
+                "SecBench is still running unelevated.\n\n"
+                "If you accepted UAC but the new window did not appear, "
+                "see %TEMP%\\secbench_elevation.log for the exact command "
+                "we tried to execute.",
+            )
+            return
+
+        # New elevated process is starting. Tear down this one cleanly
+        # via QApplication.quit() so the Qt event loop unwinds. A short
+        # delay lets the new process register with Windows before the
+        # original exits (avoids a brief no-window flash).
+        from PyQt6.QtCore import QTimer
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        QTimer.singleShot(400, app.quit if app else self.close)
 
     # ---------------------------------------------------------------- signals
     def _on_auth_changed(self, bundle) -> None:

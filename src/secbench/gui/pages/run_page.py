@@ -188,16 +188,17 @@ class RunPage(QWidget):
 
         cache = ResponseCache(enabled=self.main.benchmarks_page.cache_chk.isChecked())
 
-        # Build a macOS target if the user picked the macOS benchmark.
+        # Build an OS target if the user picked any infrastructure benchmark
+        # (macOS or RHEL).
         target = None
-        needs_macos = any(b.target == "macos" for b in bench_objs)
-        if needs_macos:
+        needs_os_target = any(b.target in ("macos", "rhel", "windows") for b in bench_objs)
+        if needs_os_target:
             try:
-                target = self.main.connect_page.macos_target()
+                target = self.main.connect_page.os_target()
                 self.main.connect_page.persist_target_settings()
-                self._append_log(f"macOS target: {target.describe()}")
+                self._append_log(f"OS target: {target.describe()}")
             except Exception as exc:
-                self._append_log(f"Could not build macOS target: {exc}")
+                self._append_log(f"Could not build OS target: {exc}")
                 return
 
         # Auth bundle is optional when only macOS is selected.
@@ -241,10 +242,6 @@ class RunPage(QWidget):
 
         if evt.phase == "started":
             running.add(evt.control_id)
-            short = (evt.title or "").strip()
-            if len(short) > 90:
-                short = short[:87] + "..."
-            self._append_log(f"RUN  [{evt.benchmark_id}] {evt.control_id}  {short}")
         else:
             running.discard(evt.control_id)
             counts[evt.status or "unknown"] = counts.get(evt.status or "unknown", 0) + 1
@@ -263,22 +260,24 @@ class RunPage(QWidget):
                 label.setText(
                     f"{bench_title}  -  {evt.completed} / {evt.total}    {stats}"
                 )
+            short = (evt.title or "").strip()
+            if len(short) > 90:
+                short = short[:87] + "..."
             self._append_log(
-                f"DONE [{evt.benchmark_id}] {evt.control_id} -> {evt.status}"
+                f"[{evt.benchmark_id}] {evt.control_id} -> {evt.status}  {short}"
             )
 
-        # Refresh "currently running" list across all benchmarks.
-        active: list[str] = []
-        for bid, ids in self._running.items():
-            for cid in sorted(ids):
-                active.append(f"{bid[:24]}/{cid}")
-        if active:
-            shown = active[:6]
-            extra = len(active) - len(shown)
-            text = "Running: " + ", ".join(shown)
-            if extra > 0:
-                text += f"  (+{extra} more)"
-            self.running_label.setText(text)
+        # "Running" label shows only the current module (benchmark) being
+        # processed, not the in-flight control list.
+        active_bench = next(
+            (bid for bid, ids in self._running.items() if ids), None
+        )
+        if active_bench:
+            title = next(
+                (b.title for b in self.main.benchmarks if b.id == active_bench),
+                active_bench,
+            )
+            self.running_label.setText(f"Running: {title}")
         else:
             self.running_label.setText("Idle")
 

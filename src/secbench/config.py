@@ -64,7 +64,8 @@ class Settings:
     use_response_cache: bool = True
     output_dir: str = ""
     profile: str = "E3"  # M365 license profile (E3, E5)
-    macos_target_kind: str = "local"  # local | ssh
+    macos_target_kind: str = "local"  # local | ssh   (legacy alias for os_target_kind)
+    os_target_kind: str = "local"     # local | ssh   (used by macOS + RHEL benchmarks)
     macos_ssh_host: str = ""
     macos_ssh_port: int = 22
     macos_ssh_user: str = ""

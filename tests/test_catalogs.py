@@ -14,6 +14,14 @@ def test_all_catalogs_load():
         "azure_storage_1_0_0",
         "m365_foundations_6_0_1",
         "macos_tahoe_1_0_0",
+        "rhel_10_1_0_1",
+        "rhel_9_2_0_0",
+        "rhel_9_stig_1_0_0",
+        "rhel_8_4_0_0",
+        "rhel_8_stig_2_0_0",
+        "defender_av_1_0_0",
+        "windows_11_enterprise_5_0_1",
+        "windows_11_standalone_5_0_0",
     }
     found = {b.id for b in benches}
     assert expected.issubset(found), f"Missing benchmarks: {expected - found}"
