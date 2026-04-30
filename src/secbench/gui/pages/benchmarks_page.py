@@ -38,7 +38,7 @@ class BenchmarksPage(QWidget):
         groups_row = QHBoxLayout()
         self.cloud_box = QGroupBox("Cloud (Azure / M365)")
         self.cloud_layout = QVBoxLayout(self.cloud_box)
-        self.infra_box = QGroupBox("Infrastructure (macOS / Linux)")
+        self.infra_box = QGroupBox("Infrastructure")
         self.infra_layout = QVBoxLayout(self.infra_box)
         groups_row.addWidget(self.cloud_box, 1)
         groups_row.addWidget(self.infra_box, 1)

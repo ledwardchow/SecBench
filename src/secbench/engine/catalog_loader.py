@@ -31,6 +31,16 @@ BENCHMARK_PACKAGES: list[tuple[str, str]] = [
     ("secbench.benchmarks.defender_av_1_0_0", "catalog.yaml"),
     ("secbench.benchmarks.windows_11_enterprise_5_0_1", "catalog.yaml"),
     ("secbench.benchmarks.windows_11_standalone_5_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.azure_compute_win_server_2022_1_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.azure_compute_win_server_2019_1_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.win_server_2025_2_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.win_server_2025_standalone_1_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.win_server_2022_5_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.win_server_2022_standalone_2_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.win_server_2022_stig_2_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.win_server_2019_4_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.win_server_2019_standalone_3_0_0", "catalog.yaml"),
+    ("secbench.benchmarks.win_server_2019_stig_3_0_0", "catalog.yaml"),
 ]
 
 
